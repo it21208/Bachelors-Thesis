@@ -1,0 +1,72 @@
+class CalculateSQ_InnerClass implements PairFunction<Tuple2<Integer, TrainingData>, 
+Integer, TrainingData> {
+
+        // data members
+        int feature;
+
+        // constructor
+        public CalculateSQ_InnerClass() {
+        }
+
+        // data accessors
+        public void setFeature(int feature) {
+            this.feature = feature;
+        }
+
+        // implementation of interface obligations
+        @Override
+    public Tuple2<Integer, TrainingData> call(Tuple2<Integer, TrainingData> tuple) throws Exception{
+            Integer index = tuple._1;
+            TrainingData data = tuple._2;
+            int movieId = data.MovieId;
+            int custId = data.CustId;
+            int rating = data.Rating;
+            double cache = data.Cache;
+            double cf = customerFeatureMatrixRow_BRDCST.getValue().row.get(custId - 1);
+            double mf = movieFeatureMatrixRow_BRDCST.getValue().row.get(movieId - 1);
+            /* cache broadcast values in local variables to avoid calling them
+               repeatedly and to make code easier to read */
+            double INIT = SVDMovieLensSparkJava.this.INIT_BRDCST.getValue();
+            double LRATE = SVDMovieLensSparkJava.this.LRATE_BRDCST.getValue();
+            double K = SVDMovieLensSparkJava.this.K_BRDCST.getValue();
+            double sum = (cache > 0) ? cache : 1;
+            // Add contribution of current feature
+            sum += mf * cf;
+            if (sum > 5) {
+                sum = 5;
+            }
+            if (sum < 1) {
+                sum = 1;
+            }
+            // Add up trailing defaults values
+            sum += (MAX_FEATURES_BRDCST.getValue() - feature - 1) * (INIT * INIT);
+            if (sum > 5) {
+                sum = 5;
+            }
+            if (sum < 1) {
+                sum = 1;
+            }
+            double err = (1.0 * rating - sum);
+            sq_ACC.add(err * err);
+            /* I cannot update a single value in a MatrixRow Accumulator, so I
+               have to construct an "zero" MatrixRow, update a single item and
+               add this MatrixRow to the MatrixRow Accumulator!!
+             */
+            List<Double> custlst = new ArrayList<>();
+            for (int i = 0; i < customerFeatureMatrixRow_BRDCST.getValue().row.size(); i++) {
+                custlst.add(0.0);
+            }
+            custlst.set(custId - 1, LRATE * (err * mf - K * cf));
+            if (feature == 1) {
+Message("CalculateSQ_InnerClass.call()-custFeatureRow("+feature+","+custId+")="+custlst.get(custId-1));
+            }
+            customerFeatureMatrixRow_ACC.add(new MatrixRow(custlst));
+            List<Double> movielst = new ArrayList<>();
+            for (int i = 0; i < movieFeatureMatrixRow_BRDCST.getValue().row.size(); i++) {
+                movielst.add(0.0);
+            }
+            movielst.set(movieId - 1, LRATE * (err * cf - K * mf));
+            movieFeatureMatrixRow_ACC.add(new MatrixRow(movielst));
+            return tuple;
+        }
+    }

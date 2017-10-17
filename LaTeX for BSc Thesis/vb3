@@ -1,0 +1,26 @@
+
+double spark_PredictRating(double movieFeature,double customerFeature,int feature,
+double cache,boolean bTrailing){
+// Get cached value for old features or default to an average
+double sum = (cache > 0) ? cache : 1;
+// Add contribution of current feature
+sum += movieFeature * customerFeature;
+if (sum > 5) {
+       sum = 5;
+     }
+       if (sum < 1) {
+          sum = 1;
+        }
+        // Add up trailing defaults values
+        if (bTrailing) {
+sum+=(MAX_FEATURES_BRDCST.getValue()-(feature+1)-1)*(INIT_BRDCST.getValue()*INIT_BRDCST.getValue());
+            if (sum > 5) {
+                sum = 5;
+            }
+            if (sum < 1) {
+                sum = 1;
+            }
+        }
+        return sum;
+ }
+

@@ -1,0 +1,23 @@
+package edu.berkeley.svdmovielens;
+
+public class TrainingData extends SparkData {
+
+    public double Cache = 0;
+
+    public TrainingData(int CustId, int MovieId, int Rating) {
+        super(CustId, MovieId, Rating);
+    }
+    public double getCache() {
+        return Cache;
+    }
+
+    public void setCache(double Cache) {
+        this.Cache = Cache;
+    }
+    
+    @Override
+    public String toString() {
+        return "TrainingData [custId=" + CustId + ", MovieId=" + MovieId +
+                + ", Rating=" + Rating + ", Cache=" + Cache + "]";
+    }     
+}

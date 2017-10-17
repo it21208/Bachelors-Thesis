@@ -1,0 +1,9 @@
+package SVDMovieLensJava;
+
+public class Data {
+//------------------------------DATA MEMBERS ------------  
+    public int CustId;
+    public short MovieId;
+    public byte Rating;
+    public double Cache = 0.0;
+}

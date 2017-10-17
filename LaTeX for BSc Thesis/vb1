@@ -1,0 +1,44 @@
+ void spark_CalcFeatures() {
+int f, e;
+double /*err,*/ rmse_last = 0.0, rmse = 2.0;
+int movieId;
+double cf, mf;
+long tmp;
+double MIN_EPOCHS = this.MIN_EPOCHS_BRDCST.getValue();
+double MIN_IMPROVEMENT = this.MIN_IMPROVEMENT_BRDCST.getValue();
+
+// declare inner class variables to use in tranformations
+CalculateSQ_InnerClass funcCalcSQ = new CalculateSQ_InnerClass();
+for (f = 0; f < /*this.MAX_FEATURES*/ 1; f++) {
+Message("Calculating feature " + f);
+// Create an RDD with Data and the MatrixRows from CustomerFeature[f][] and MovieFeature[f][] matrices
+funcCalcSQ.setFeature(f);
+for (e = 0; /*(e < MIN_EPOCHS) || (rmse <= rmse_last - MIN_IMPROVEMENT)*/ e < 10; e++) {
+// Create 2 Broadcast variables for the Customer 
+//and Movie MatrixRows to have access to previous values
+customerFeatureMatrixRow_BRDCST = sc.broadcast(mapCustomerFeatures.get(f));
+movieFeatureMatrixRow_BRDCST = sc.broadcast(mapMovieFeatures.get(f));
+// Create the 2 Accumulators for the Customer and Movie MatrixRows
+customerFeatureMatrixRow_ACC=sc.accumulator(mapCustomerFeatures.get(f),new MatrixRowAccumulatorParam());
+movieFeatureMatrixRow_ACC = sc.accumulator(mapMovieFeatures.get(f), new MatrixRowAccumulatorParam());
+this.sq_ACC = sc.accumulator(0.0);
+rmse_last = rmse;
+m_aTrainingRatings_PairRDD = m_aTrainingRatings_PairRDD.mapToPair(funcCalcSQ);
+//m_aRatings.collect();
+tmp = m_aTrainingRatings_PairRDD.count();
+rmse = Math.sqrt(this.sq_ACC.value() / m_nRatingCount_BRDCST.getValue());
+// Update the maps with the accumulated MatrixRows
+mapCustomerFeatures.put(f, customerFeatureMatrixRow_ACC.value());
+mapMovieFeatures.put(f, movieFeatureMatrixRow_ACC.value());
+System.out.printf("|---------> Epoch = %d\tRmse_last-Rmse = %f\n", e, rmse_last - rmse);
+}
+
+Message("Customer ACCUMULATOR after transformation for Feature " +
++ f + ", Epoch " + e + "\n" + customerFeatureMatrixRow_ACC.value().toString());
+//System.out.printf("|--> custmatrowAccum row 0 is %s\n",
+// customerFeatureMatrixRow_ACC.value().toString());
+
+// Re-Calculate cache values
+//spark_m_FeatureDataRows = spark_m_FeatureDataRows.mapToPair(funcCalcCaches);
+    }
+}

@@ -1,0 +1,301 @@
+package SVDMovieLensJava;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.time.Duration;
+import java.util.Scanner;
+import java.time.LocalTime;
+
+public class Engine {
+
+    //-------------------------------- Data Members --------------------------
+private final String TRAINING_FILE = "/nfs/MovieLens/u.data";
+private final String TESTING_FILE = "/nfs/MovieLens/u1.test";
+private final String PREDICTIONS_FILE = "/nfs/MovieLens/u1.predictions";
+
+private final int MAX_RATINGS = 100000; // Ratings in entire training set (+1)
+private final int MAX_CUSTOMERS = 943; // Customers in the entire training set (+1)
+private final int MAX_MOVIES = 1682;     // Movies in the entire training set (+1)
+private final int MAX_FEATURES = 64;      // Number of features to use 
+private final int MIN_EPOCHS = 120;      // Minimum number of epochs per feature
+private final int MAX_EPOCHS = 200;       // Max epochs per feature
+
+private final double MIN_IMPROVEMENT = 0.0001;//Min improvement required to continue current feature
+private final double INIT = 0.1;   // Initialization value for features
+private final double LRATE = 0.001; // Learning rate parameter
+private final double K = 0.015; // Regularization parameter used to minimize over-fitting
+
+private int m_nRatingCount;    // Current number of loaded ratings
+private Data[] m_aRatings = new Data[MAX_RATINGS];  // Array of ratings data
+private Movie[] m_aMovies = new Movie[MAX_MOVIES + 1];  // Array of movie metrics
+private Customer[] m_aCustomers = new Customer[MAX_CUSTOMERS + 1];// Array of customer metrics
+private double[][] m_aMovieFeatures = new double[MAX_FEATURES][MAX_MOVIES + 1];//Array of f by mov. 
+private double[][] m_aCustFeatures = new double[MAX_FEATURES][MAX_CUSTOMERS + 1];//Array of f by cust.
+
+    //----------------------------------------------Constructor-------------- 
+    public Engine() {
+        int f, i;
+        this.m_nRatingCount = 0;
+
+        for (f = 0; f < this.MAX_FEATURES; f++) {
+            for (i = 1; i < this.MAX_MOVIES+1; i++) {
+                this.m_aMovieFeatures[f][i] = this.INIT;
+            }
+            for (i = 1; i < this.MAX_CUSTOMERS+1; i++) {
+                this.m_aCustFeatures[f][i] = this.INIT;
+            }
+        }
+    }
+
+    //--------------------------Member Functions of Engine Class---------------
+    private void CheckUpdateMovies(short movieId, byte rating) {
+        // check if movie ID does not exist
+        if (this.m_aMovies[movieId] == null) {
+            this.m_aMovies[movieId] = new Movie();
+        }
+        // update movie record
+        this.m_aMovies[movieId].RatingCount++;
+        this.m_aMovies[movieId].RatingSum += rating;
+    }
+
+    private void CheckUpdateCustomers(short custId, byte rating) {
+        // check if customer ID does not exist
+        if (this.m_aCustomers[custId] == null) {
+            this.m_aCustomers[custId] = new Customer();
+        }
+        // update customer record
+        this.m_aCustomers[custId].RatingCount++;
+        this.m_aCustomers[custId].RatingSum += rating;
+    }
+
+    //-------------------------ProcessFile------------------------------------
+    private void ProcessFile(String filename) throws IOException {
+        BufferedReader inputStream = null;
+        Scanner sc = null;
+        short custId = 0, movieId = 0;
+        byte rating = 0;
+        //=============try-catch-finally=====================================
+        try {
+            String line;
+            Data data;
+            inputStream = new BufferedReader(new FileReader(filename));
+            while ((line = inputStream.readLine()) != null) {
+                // read a customer ID, movie ID and rating
+                sc = new Scanner(line);
+                sc.useDelimiter("\t");
+                custId = Short.parseShort(sc.next());
+                movieId = Short.parseShort(sc.next());
+                rating = Byte.parseByte(sc.next());
+                //--Update-Ratings-array-------------------------------
+                this.m_aRatings[this.m_nRatingCount] = new Data();
+                data = this.m_aRatings[this.m_nRatingCount];
+                data.MovieId = movieId;
+                data.CustId = custId;
+                data.Rating = rating;
+                //--Update--Movie--Statistics--------------------------------
+                CheckUpdateMovies(movieId, rating);
+                //--Update--Customer--Statistics--------------------------------
+                CheckUpdateCustomers(custId, rating);
+                // increment ratings count
+                this.m_nRatingCount++;
+                /*System.out.printf("movieId = %d, custId = %d, rating = %d, ratings = %d\n", 
+                           movieId, custId, rating, this.m_nRatingCount);*/
+            }
+        } catch (FileNotFoundException e) {
+            System.out.printf("<Engine.ProcessFile()>Error opening file %s\n", movieId);
+        } finally {
+            if (inputStream != null) {
+                inputStream.close();
+            }
+            if (sc != null) {
+                sc.close();
+            }
+        }
+        //=================================================================
+    }
+
+    //-------------------------LoadHistory------------------------------------
+    public void LoadHistory() throws IOException {
+        this.ProcessFile(this.TRAINING_FILE);
+    }
+
+    //
+    // PredictRating
+    // - During training there is no need to loop through all of the features
+    // - Use a cache for the leading features and do a quick calculation for the trailing
+    // - The trailing can be optionally removed when calculating a new cache value
+    //
+    double PredictRating(short movieId, int custId, int feature, double cache, boolean bTrailing) {
+        // Get cached value for old features or default to an average
+        double sum = (cache > 0) ? cache : 1; //m_aMovies[movieId].PseudoAvg; 
+
+        // Add contribution of current feature
+        sum += this.m_aMovieFeatures[feature][movieId] * m_aCustFeatures[feature][custId];
+        if (sum > 5) {
+            sum = 5;
+        }
+        if (sum < 1) {
+            sum = 1;
+        }
+
+        // Add up trailing defaults values
+        if (bTrailing) {
+            sum += (MAX_FEATURES - feature - 1) * (INIT * INIT);
+            if (sum > 5) {
+                sum = 5;
+            }
+            if (sum < 1) {
+                sum = 1;
+            }
+        }
+        return sum;
+    }
+
+    //
+    // CalcFeatures
+    // - Iteratively train each feature on the entire data set
+    // - Once sufficient progress has been made, move on
+    //
+    void CalcFeatures() {
+        int f, e, i, custId, cnt = 0;
+        Data rating;
+        double err, p, sq, rmse_last = 0.0, rmse = 2.0;
+        short movieId;
+        double cf, mf;
+
+        for (f = 0; f < this.MAX_FEATURES; f++) {
+            System.out.printf("\n--- Calculating feature: %d ---\n", f);
+            // Keep looping until you have passed a minimum number 
+            // of epochs or have stopped making significant progress 
+            for (e = 0; (e < this.MIN_EPOCHS) || (rmse <= rmse_last - this.MIN_IMPROVEMENT); e++) {
+                cnt++;
+                sq = 0;
+                rmse_last = rmse;
+                for (i = 0; i < this.m_nRatingCount; i++) {
+                    rating = this.m_aRatings[i];
+                    movieId = rating.MovieId;
+                    custId = rating.CustId;
+
+                    // Predict rating and calc error
+                    p = PredictRating(movieId, custId, f, rating.Cache, true);
+                    err = (1.0 * rating.Rating - p);
+                    sq += err * err;
+                  
+                    // Cache off old feature values
+                    cf = m_aCustFeatures[f][custId];
+                    mf = m_aMovieFeatures[f][movieId];
+
+                    // Cross-train the features
+                    m_aCustFeatures[f][custId] += (LRATE * (err * mf - K * cf));
+                    m_aMovieFeatures[f][movieId] += (LRATE * (err * cf - K * mf));
+                }
+
+                rmse = Math.sqrt(sq / m_nRatingCount);
+
+                /*System.out.printf("     <set x='%d' y='%f' />\n", cnt, rmse);*/
+            }
+            // Cache off old predictions
+            for (i = 0; i < this.m_nRatingCount; i++) {
+                rating = m_aRatings[i];
+                rating.Cache = PredictRating(rating.MovieId, rating.CustId, f, rating.Cache, false);
+            }
+        }
+    }
+
+    //
+    // PredictRating
+    // - This version is used for calculating the final results
+    // - It loops through the entire list of finished features
+    //
+    double PredictRating(short movieId, int custId) {
+        double sum = 1; //m_aMovies[movieId].PseudoAvg;
+
+        for (int f = 0; f < this.MAX_FEATURES; f++) {
+            sum += this.m_aMovieFeatures[f][movieId] * this.m_aCustFeatures[f][custId];
+            if (sum > 5) {
+                sum = 5;
+            }
+            if (sum < 1) {
+                sum = 1;
+            }
+        }
+        return sum;
+    }
+
+    //
+    // ProcessTest
+    // - Load a sample set in the following format
+    //
+    void ProcessTest() throws IOException {
+        BufferedReader inputStream = null;
+        PrintWriter out = null;
+        Scanner sc = null;
+        short custId = 0, movieId = 0;
+        byte rating = 0;
+        double predictrating = 0.0, diff;
+        double sum = 0.0;
+        int cnt = 0;
+        //=============try-catch-finally=====================================
+        try {
+            String line;
+            Data data;
+            inputStream = new BufferedReader(new FileReader(this.TESTING_FILE));
+            out = new PrintWriter(new BufferedWriter(new FileWriter(this.PREDICTIONS_FILE)));
+            while ((line = inputStream.readLine()) != null) {
+                // read a customer ID, movie ID and rating
+                sc = new Scanner(line);
+                sc.useDelimiter("\t");
+                custId = Short.parseShort(sc.next());
+                movieId = Short.parseShort(sc.next());
+                rating = Byte.parseByte(sc.next());
+                predictrating = PredictRating(movieId, custId);
+                diff = Math.abs(predictrating - rating);
+                sum += diff;
+                cnt++;
+                out.format("%d\t%d\t%d\t%.3f\t%.3f\n", custId, movieId, rating,
+                        predictrating, diff);
+                /* System.out.printf("movieId = %d, custId = %d\n", 
+                           movieId, custId);*/
+            }
+            out.format("\n------\nNumber of predictions : %d\nAvg Abs(diff) : %f\n", cnt, sum / cnt);
+        } catch (FileNotFoundException e) {
+            System.out.printf("<Engine.ProcessFile()>Error opening file %s\n", movieId);
+        } finally {
+            if (inputStream != null) {
+                inputStream.close();
+            }
+            if (out != null) {
+                out.close();
+            }
+            if (sc != null) {
+                sc.close();
+            }
+        }
+    }
+
+    //------------------------------Main()------------------------------------
+public static void main(String[] args) throws IOException {
+ LocalTime t1, t2, t3, t4, t5;
+
+ t1 = LocalTime.now();
+ Engine engine = new Engine();
+ t2 = LocalTime.now();
+ System.out.printf("engine construction duration equals %d s\n",Duration.between(t1, t2).getSeconds());
+ engine.LoadHistory();
+ t3 = LocalTime.now();
+ System.out.printf("load history duration equals %d s\n",Duration.between(t2, t3).getSeconds());
+ engine.CalcFeatures();
+ t4 = LocalTime.now();
+ System.out.printf("calculation feature duration equals %d s\n",Duration.between(t3, t4).getSeconds());
+ engine.ProcessTest();
+ t5 = LocalTime.now();
+ System.out.printf("processing test duration equals %d s\n",Duration.between(t4, t5).getSeconds());
+ System.out.println("\nDone\n");
+}
+    //-------------------------------------------------------------------------- 
+}

@@ -1,0 +1,46 @@
+class InnerFunctionClass3 implements PairFunction<Tuple2<Integer,Tuple3<Data,MatrixRow,MatrixRow>>,
+Integer,Tuple3<Data,MatrixRow,MatrixRow>>{
+
+        // data members
+        int feature;
+
+        public InnerFunctionClass3() {
+        }
+
+        // data accessors
+        public void setFeature(int feature) {
+            this.feature = feature;
+      }
+
+     @Override
+public Tuple2<Integer,Tuple3<Data,MatrixRow,MatrixRow>> call(Tuple2<Integer,
+Tuple3<Data,MatrixRow,MatrixRow>> tuple) throws Exception{
+     Integer index = tuple._1;
+     Data data = tuple._2._1();
+     int movieId = data.MovieId;
+     int custId = data.CustId;
+     int rating = data.Rating;
+     float cache = data.Cache;
+     MatrixRow movieRow = tuple._2._3();
+     MatrixRow customerRow = tuple._2._2();
+     float mf = movieRow.getRow().get(movieId);
+     float cf = customerRow.getRow().get(custId);
+
+     double sum = 1;
+
+     for (int f = 0; f < MAX_FEATURES; f++) {
+            
+            sum += this.m_aMovieFeatures[f][movieId] * this.m_aCustFeatures[f][custId];
+            if (sum > 5) {
+                 sum = 5;
+            }
+            if (sum < 1) {
+                 sum = 1;
+           }
+      }
+      Tuple3<Data, MatrixRow, MatrixRow> t3 = new Tuple3<>(data, customerRow, movieRow);
+      return new Tuple2<>(index, t3);
+   }
+}
+  
+   

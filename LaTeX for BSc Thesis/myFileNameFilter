@@ -1,0 +1,18 @@
+package SVDMovieLensJava;
+
+import java.io.File;
+import java.io.FilenameFilter;
+
+
+public class myFileNameFilter implements FilenameFilter {
+    String filter;
+    public myFileNameFilter(String value)
+    {
+        this.filter = value;
+    }
+
+    @Override
+    public boolean accept(File dir, String name) {
+        return name.endsWith(this.filter);
+    }
+}

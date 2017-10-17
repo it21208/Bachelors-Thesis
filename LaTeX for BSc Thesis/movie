@@ -1,0 +1,17 @@
+package SVDMovieLensJava;
+
+public class Movie {
+    //------------------------------DATA MEMBERS ------------
+    public int RatingCount = 0;
+    public int RatingSum = 0;
+    
+    //------------------------------ METHODS ------------
+    public double RatingAvg()
+    {
+        return RatingSum / (1.0 * RatingCount);
+    }
+    public double PseudoAvg()
+    {
+        return (3.23 * 25 + RatingSum) / (25.0 + RatingCount);
+    }
+}

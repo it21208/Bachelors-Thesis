@@ -1,0 +1,7 @@
+package SVDMovieLensJava;
+
+public class Customer {
+    //------------------------------DATA MEMBERS ------------  
+    public int RatingCount = 0;
+    public int RatingSum = 0;
+}

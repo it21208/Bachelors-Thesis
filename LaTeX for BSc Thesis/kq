@@ -1,0 +1,17 @@
+// custom registrator for Kryo Serializer - Static Nested class
+public static class MyClassRegistrator implements KryoRegistrator {
+@Override
+public void registerClasses(Kryo kryo) 
+kryo.register(Customer.class, new FieldSerializer(kryo, Customer.class));
+kryo.register(Movie.class, new FieldSerializer(kryo, Movie.class));
+kryo.register(SparkData.class, new FieldSerializer(kryo, SparkData.class));
+kryo.register(TrainingData.class, new FieldSerializer(kryo, TrainingData.class));
+kryo.register(TestingData.class, new FieldSerializer(kryo, TestingData.class));
+kryo.register(MatrixRow.class,new FieldSerializer(kryo, MatrixRow.class));
+kryo.register(MatrixRowAccumulatorParam.class,new FieldSerializer(kryo,MatrixRowAccumulatorParam.
+class));
+kryo.register(SVDMovieLensSparkJava.class, new FieldSerializer(kryo, SVDMovieLensSparkJava.class));
+}
+}
+}
+ 
