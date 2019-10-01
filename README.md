@@ -1,4 +1,8 @@
 # Bachelor-s-Thesis
+## Harokopio University of Athens, Greece
+### School of Digital Technology
+#### Department of Informatics and Telematics
+##### Alexandros Ioannidis
 
 - Implementation of the SVD recommendation algorithm on the platform Apache Spark. Personalized recommendations based on content and preferences. Use of Java, Apache Spark, NFS, C++.
 ------------------------------------------------------------------------------------------------------------------------------
