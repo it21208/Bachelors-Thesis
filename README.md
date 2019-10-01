@@ -4,6 +4,6 @@
 #### Department of Informatics and Telematics
 ##### Alexandros Ioannidis
 
-- Implementation of the SVD recommendation algorithm on the platform Apache Spark. Personalized recommendations based on content and preferences. Use of Java, Apache Spark, NFS, C++.
+- Implementation of the SVD recommendation algorithm on the platform Apache Spark. Personalized recommendations based on content and preferences. Usage of Java, Apache Spark, NFS, C/C++, Linux, MovieLens and Netflix datasets.
 ------------------------------------------------------------------------------------------------------------------------------
 - Υλοποίηση του  αλγορίθµου συστάσεων SVD στην πλατφόρµα Spark. Eξατομικευμένη παροχή συστάσεων με βάση το περιεχόμενο και τις προτιμήσεις
